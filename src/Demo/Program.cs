@@ -1,5 +1,13 @@
+using System;
 using System.Diagnostics;
+using System.IO;
+using System.Threading.Tasks;
 using Demo.Jobs;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.StaticWebAssets;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Quartz;
 using Serilog;
 using Serilog.Events;
@@ -61,11 +69,10 @@ public static class Program
 
                 context.Configuration = builder.Build();
             })
-           .UseDefaultServiceProvider((context, options) =>
+           .UseDefaultServiceProvider((_, options) =>
             {
-                bool isDevelopment = context.HostingEnvironment.IsDevelopment();
-                options.ValidateScopes = isDevelopment;
-                options.ValidateOnBuild = isDevelopment;
+                options.ValidateScopes = true;
+                options.ValidateOnBuild = true;
             })
            .ConfigureServices((hostContext, services) =>
             {
@@ -96,5 +103,19 @@ public static class Program
                 });
 
                 services.AddTransient<ExpireMutationsJob>();
+            })
+           .ConfigureWebHost(builder =>
+            {
+                builder.ConfigureAppConfiguration((ctx, cb) =>
+                {
+                    if (ctx.HostingEnvironment.IsDevelopment())
+                    {
+                        StaticWebAssetsLoader.UseStaticWebAssets(ctx.HostingEnvironment, ctx.Configuration);
+                    }
+                });
+                builder.UseContentRoot(Directory.GetCurrentDirectory());
+                builder.UseKestrel((context, options) => { options.Configure(context.Configuration.GetSection("Kestrel")); });
+                builder.UseIIS();
+                builder.UseStartup<Startup>();
             });
 }
